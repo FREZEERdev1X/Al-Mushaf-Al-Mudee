@@ -1,0 +1,10 @@
+{
+  "name": "Al-Mushaf Al-Mudee",
+  "description": "An elegant, interactive Islamic Quran reader with translation, audio recitation, prayer times, Qibla compass, Tasbih counter, Khatmah trackers, and an AI theological assistant.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

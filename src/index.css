@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Amiri", Georgia, Cambria, serif;
+  --font-mono: "Fira Code", monospace;
+  
+  --animate-spin-slow: spin 16s linear infinite;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-fade: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom scrollbar to match our glossy navy design */
+.styled-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-track {
+  background: rgba(11, 19, 43, 0.4);
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.25);
+  border-radius: 99px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.5);
+}
+
+/* RTL layout helpers */
+.direction-rtl {
+  direction: rtl;
+}
+
+.block-rtl {
+  text-align: right;
+  direction: rtl;
+}
+
+/* Glow effects */
+.text-shadow-sm {
+  text-shadow: 0 1px 8px rgba(212,175,55,0.15);
+}
