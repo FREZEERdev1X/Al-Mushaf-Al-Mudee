@@ -264,13 +264,62 @@ export default function App() {
       }
 
       try {
-        const response = await fetch(`/api/quran/surah/${selectedSurahId}`);
-        const json = await response.json();
+        let fetchedData = null;
 
-        if (response.ok && json.data) {
-          setActiveSurahData(json.data);
+        // 1. High Resilience: Attempt to fetch directly from the client's public API endpoint.
+        // This is extremely robust because browser-side requests bypass cloud hosting (Google Cloud Run) IP rate limits or blocklists.
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          
+          const clientResponse = await fetch(
+            `https://api.alquran.cloud/v1/surah/${selectedSurahId}/editions/quran-uthmani,en.sahih`,
+            { signal: controller.signal }
+          );
+          clearTimeout(timeoutId);
+
+          if (clientResponse.ok) {
+            const clientJson = await clientResponse.json();
+            if (clientJson.code === 200 && clientJson.data && clientJson.data.length >= 2) {
+              const arabicEdition = clientJson.data[0];
+              const englishEdition = clientJson.data[1];
+              fetchedData = {
+                number: arabicEdition.number,
+                name: arabicEdition.name,
+                englishName: arabicEdition.englishName,
+                englishNameTranslation: arabicEdition.englishNameTranslation,
+                revelationType: arabicEdition.revelationType,
+                numberOfAyahs: arabicEdition.numberOfAyahs,
+                ayahs: arabicEdition.ayahs.map((ayah: any, index: number) => ({
+                  numberInSurah: ayah.numberInSurah,
+                  text: ayah.text,
+                  translation: englishEdition.ayahs[index]?.text || ""
+                }))
+              };
+              console.log("Quran loaded successfully via direct client-side API.");
+            }
+          }
+        } catch (clientErr) {
+          console.warn("Direct client-side AlQuran API fetch failed or timed out. Falling back to backend proxy...", clientErr);
+        }
+
+        // 2. Failure fallback: If client-side direct request did not succeed, fetch from server proxy
+        if (!fetchedData) {
+          const response = await fetch(`/api/quran/surah/${selectedSurahId}`);
+          const json = await response.json();
+
+          if (response.ok && json.data) {
+            fetchedData = json.data;
+            console.log("Quran loaded successfully via server-side proxy API.");
+          } else {
+            throw new Error(json.error || "Failed to load Surah text via proxy");
+          }
+        }
+
+        if (fetchedData) {
+          setActiveSurahData(fetchedData);
         } else {
-          throw new Error(json.error || "Failed to load Surah text");
+          throw new Error("No data received from client or proxy");
         }
       } catch (err: any) {
         console.warn("Backend dynamic fetch failed. Loading secure local fallback offline...", err);
