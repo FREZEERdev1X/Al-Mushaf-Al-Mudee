@@ -1,9 +1,35 @@
 @import "tailwindcss";
 
+:root {
+  --font-amiri: "Amiri", serif;
+  --font-scheherazade: "Scheherazade New", serif;
+  --font-lateef: "Lateef", cursive;
+  --font-cairo: "Cairo", sans-serif;
+  --font-kufi: "Reem Kufi", sans-serif;
+  --font-tajawal: "Tajawal", sans-serif;
+  --font-noto: "Noto Naskh Arabic", serif;
+}
+
+.font-amiri { font-family: "Amiri", serif; }
+.font-scheherazade { font-family: "Scheherazade New", serif; }
+.font-lateef { font-family: "Lateef", cursive; }
+.font-cairo { font-family: "Cairo", sans-serif; }
+.font-kufi { font-family: "Reem Kufi", sans-serif; }
+.font-tajawal { font-family: "Tajawal", sans-serif; }
+.font-noto { font-family: "Noto Naskh Arabic", serif; }
+
 @theme {
   --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
   --font-serif: "Amiri", Georgia, Cambria, serif;
   --font-mono: "Fira Code", monospace;
+  
+  --font-amiri: "Amiri", serif;
+  --font-scheherazade: "Scheherazade New", serif;
+  --font-lateef: "Lateef", cursive;
+  --font-cairo: "Cairo", sans-serif;
+  --font-kufi: "Reem Kufi", sans-serif;
+  --font-tajawal: "Tajawal", sans-serif;
+  --font-noto: "Noto Naskh Arabic", serif;
   
   --animate-spin-slow: spin 16s linear infinite;
   --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;

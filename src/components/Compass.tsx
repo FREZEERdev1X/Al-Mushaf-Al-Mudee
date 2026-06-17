@@ -55,6 +55,78 @@ export default function Compass({ lang }: CompassProps) {
   const [compassHeading, setCompassHeading] = useState<number>(0); // manual turning for desktop preview
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
 
+  // Advanced timing adjustments & methods
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [method, setMethod] = useState<string>(() => localStorage.getItem("salah_method") || "3");
+  const [school, setSchool] = useState<string>(() => localStorage.getItem("salah_school") || "0");
+  const [offsets, setOffsets] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem("salah_offsets");
+      return saved ? JSON.parse(saved) : { Fajr: 0, Sunrise: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0 };
+    } catch {
+      return { Fajr: 0, Sunrise: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0 };
+    }
+  });
+
+  // Keep state synced to localStorage
+  useEffect(() => {
+    localStorage.setItem("salah_method", method);
+  }, [method]);
+
+  useEffect(() => {
+    localStorage.setItem("salah_school", school);
+  }, [school]);
+
+  useEffect(() => {
+    localStorage.setItem("salah_offsets", JSON.stringify(offsets));
+  }, [offsets]);
+
+  // Helper to format times into 12-hour AM/PM or ص/م
+  const formatTime12 = (timeStr: string) => {
+    if (!timeStr) return "";
+    const cleanTime = timeStr.trim().split(" ")[0]; // Clean trailing timezones
+    const parts = cleanTime.split(":");
+    if (parts.length < 2) return timeStr;
+    
+    let hours = parseInt(parts[0], 10);
+    const minutes = parts[1];
+    
+    if (isNaN(hours)) return timeStr;
+    
+    const period = hours >= 12 ? (lang === "ar" ? "م" : "PM") : (lang === "ar" ? "ص" : "AM");
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    
+    return `${hours}:${minutes} ${period}`;
+  };
+
+  // Helper to add or subtract minutes from any time string (HH:MM)
+  const addMinutesToTime = (timeStr: string, minutesToAdd: number) => {
+    if (!timeStr || minutesToAdd === 0) return timeStr;
+    const cleanTime = timeStr.trim().split(" ")[0];
+    const parts = cleanTime.split(":");
+    if (parts.length < 2) return timeStr;
+    let hrs = parseInt(parts[0], 10);
+    let mins = parseInt(parts[1], 10);
+    if (isNaN(hrs) || isNaN(mins)) return timeStr;
+    
+    let totalMins = hrs * 60 + mins + minutesToAdd;
+    // Handle wrap around
+    if (totalMins < 0) totalMins += 24 * 60;
+    totalMins = totalMins % (24 * 60);
+    
+    const finalHrs = Math.floor(totalMins / 60).toString().padStart(2, "0");
+    const finalMins = (totalMins % 60).toString().padStart(2, "0");
+    return `${finalHrs}:${finalMins}`;
+  };
+
+  // Helper to retrieve adjusted times using customized manual offsets
+  const getAdjustedTime = (key: string) => {
+    const baseTime = timings[key] || "00:00";
+    const offset = offsets[key] || 0;
+    return addMinutesToTime(baseTime, offset);
+  };
+
   // Azan Notifications state
   const [activeMuted, setActiveMuted] = useState<boolean>(true);
   const [nextPrayerName, setNextPrayerName] = useState<string>("Dhuhr");
@@ -64,6 +136,55 @@ export default function Compass({ lang }: CompassProps) {
   // Hijri adjustment states
   const [hijriOffset, setHijriOffset] = useState<number>(0);
   const [hijriDateText, setHijriDateText] = useState<string>("");
+
+  // Fetch real-time timings on mount or when location coords or settings change
+  useEffect(() => {
+    if (!coords) return;
+    
+    let isMounted = true;
+    const loadTimes = async () => {
+      setLoading(true);
+      setErrorMsg(null);
+      try {
+        const response = await fetch(
+          `https://api.aladhan.com/v1/timings?latitude=${coords.lat}&longitude=${coords.lng}&method=${method}&school=${school}`
+        );
+        if (!response.ok) throw new Error("Could not fetch remote timings.");
+
+        const json = await response.json();
+        if (isMounted && json.data && json.data.timings) {
+          const raw = json.data.timings;
+          const filteredTimes = {
+            Fajr: raw.Fajr,
+            Sunrise: raw.Sunrise,
+            Dhuhr: raw.Dhuhr,
+            Asr: raw.Asr,
+            Maghrib: raw.Maghrib,
+            Isha: raw.Isha,
+          };
+          setTimings(filteredTimes);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setErrorMsg(
+            lang === "ar"
+              ? "تعذر الاتصال بالخادم لمزامنة مواقيت دقيقة لليوم. تم استخدام الحساب التقريبي."
+              : "Server unreachable. Employing calculated offline estimates."
+          );
+          generateApproximatedTimings(coords.lat);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadTimes();
+    return () => {
+      isMounted = false;
+    };
+  }, [coords?.lat, coords?.lng, method, school, lang]);
 
   useEffect(() => {
     // Generate static offline Hijri calculation with offset
@@ -92,7 +213,7 @@ export default function Compass({ lang }: CompassProps) {
       updateNextPrayer();
     }, 1000);
     return () => clearInterval(timer);
-  }, [timings, lang]);
+  }, [timings, lang, offsets]);
 
   const calculateHijri = (offset: number) => {
     // Simple approximate algorithmic Hijri calculator (Tabular Islamic Calendar)
@@ -152,9 +273,10 @@ export default function Compass({ lang }: CompassProps) {
     };
 
     Object.keys(timings).forEach((key) => {
-      const parts = timings[key].split(":");
+      const adjustedTimeStr = getAdjustedTime(key);
+      const parts = adjustedTimeStr.split(":");
       if (parts.length === 2) {
-        const mins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        const mins = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
         parsedTimes.push({
           name: key,
           mins,
@@ -178,7 +300,7 @@ export default function Compass({ lang }: CompassProps) {
     }
 
     setNextPrayerName(lang === "ar" ? next.labelAr : next.labelEn);
-    setNextPrayerTime(timings[next.name]);
+    setNextPrayerTime(getAdjustedTime(next.name));
 
     // Calculate diff
     let diffMins = 0;
@@ -206,43 +328,16 @@ export default function Compass({ lang }: CompassProps) {
     setErrorMsg(null);
 
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setCoords({ lat, lng });
 
         // Calculate custom offline Qibla compass angle from current coordinates
         calculateQiblaAngleForCoords(lat, lng);
-
-        try {
-          // Fetch real timings online from Aladhan API based on coordinates
-          const response = await fetch(`https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lng}&method=4`);
-          if (!response.ok) throw new Error("Could not fetch remote timings.");
-
-          const json = await response.json();
-          if (json.data && json.data.timings) {
-            const raw = json.data.timings;
-            // Clean unneeded times
-            const filteredTimes = {
-              Fajr: raw.Fajr,
-              Sunrise: raw.Sunrise,
-              Dhuhr: raw.Dhuhr,
-              Asr: raw.Asr,
-              Maghrib: raw.Maghrib,
-              Isha: raw.Isha,
-            };
-            setTimings(filteredTimes);
-            setCityNameAr("موقعي الحالي");
-            setCityNameEn("My GPS Location");
-            setSelectedCity("custom");
-          }
-        } catch (err: any) {
-          // Calculate fallbacks mathematically in-case aladhan is blocked
-          setErrorMsg(lang === "ar" ? "تعذر الاتصال بالخادم. جاري ضبط مواقيت تقريبية." : "Server unreachable. Employing calculated offline estimates.");
-          generateApproximatedTimings(lat);
-        } finally {
-          setLoading(false);
-        }
+        setCityNameAr("موقعي الحالي");
+        setCityNameEn("My GPS Location");
+        setSelectedCity("custom");
       },
       (err) => {
         setLoading(false);
@@ -308,6 +403,14 @@ export default function Compass({ lang }: CompassProps) {
     setCoords({ lat: selected.lat, lng: selected.lng });
     setQiblaAngle(Math.round(selected.qibla));
     setErrorMsg(null);
+  };
+
+  const handleOffsetChange = (key: string, newVal: number) => {
+    const val = Math.max(-60, Math.min(60, newVal));
+    setOffsets((prev) => ({
+      ...prev,
+      [key]: val,
+    }));
   };
 
   // Play simulated Azan or soft chime audio notification
@@ -467,6 +570,105 @@ export default function Compass({ lang }: CompassProps) {
               <span>{errorMsg}</span>
             </div>
           )}
+
+          {/* Advanced layout toggle button */}
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="mt-3.5 text-xs text-amber-500 hover:text-amber-400 font-medium flex items-center gap-1 self-end transition-all duration-200"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>
+              {showAdvanced
+                ? (lang === "ar" ? "إخفاء الإعدادات المتقدمة ▴" : "Hide Advanced Settings ▴")
+                : (lang === "ar" ? "إعدادات المواقيت المتقدمة ودقة الأذان ▾" : "Advanced Timing Settings & Adjustments ▾")}
+            </span>
+          </button>
+
+          {/* Advanced collapsible content panel */}
+          {showAdvanced && (
+            <div className="mt-3 p-4 rounded-xl bg-[#050B18] border border-amber-900/20 text-xs text-gray-300">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-white/5">
+                <div>
+                  <label className="text-gray-400 block mb-1">
+                    {lang === "ar" ? "طريقة الحساب الفلكي:" : "Astronomical Method:"}
+                  </label>
+                  <select
+                    value={method}
+                    onChange={(e) => setMethod(e.target.value)}
+                    className="w-full bg-[#071129] border border-white/5 rounded-lg py-1.5 px-2 text-xs text-amber-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="3">{lang === "ar" ? "رابطة العالم الإسلامي" : "Muslim World League"}</option>
+                    <option value="4">{lang === "ar" ? "جامعة أم القرى، مكة" : "Umm Al-Qura, Makkah"}</option>
+                    <option value="5">{lang === "ar" ? "الهيئة المصرية العامة للمساحة" : "Egyptian Survey"}</option>
+                    <option value="2">{lang === "ar" ? "الجمعية الإسلامية لأمريكا الشمالية" : "ISNA (North America)"}</option>
+                    <option value="1">{lang === "ar" ? "جامعة العلوم الإسلامية بكراتشي" : "Karachi University"}</option>
+                    <option value="12">{lang === "ar" ? "مواقيت فرنسا (UOIF)" : "France (UOIF)"}</option>
+                    <option value="13">{lang === "ar" ? "رئاسة الشؤون الدينية التركية" : "Turkey (Diyanet)"}</option>
+                    <option value="9">{lang === "ar" ? "وزارة الأوقاف الكويتية" : "Kuwait Ministry"}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-gray-400 block mb-1">
+                    {lang === "ar" ? "المذهب الفقهي (العصر):" : "Juristic School (Asr):"}
+                  </label>
+                  <select
+                    value={school}
+                    onChange={(e) => setSchool(e.target.value)}
+                    className="w-full bg-[#071129] border border-white/5 rounded-lg py-1.5 px-2 text-xs text-amber-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="0">{lang === "ar" ? "جمهور الفقهاء (شافعي، مالكي، حنبلي)" : "Standard (Shafi'i, Maliki, Hanbali)"}</option>
+                    <option value="1">{lang === "ar" ? "المذهب الحنفي (مثل العصر متأخر)" : "Hanafi (Later Asr)"}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2 font-semibold">
+                  {lang === "ar" ? "⚙️ ضبط توقيت الصلوات بالدقائق (إذا تفاوتت عن المسجد المحلي):" : "⚙️ Fine-Tune Minutes Offset (If deviating from your local mosque):"}
+                </span>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {Object.keys(offsets).map((key) => {
+                    const arabicNames: Record<string, string> = {
+                      Fajr: "الفجر", Sunrise: "الشروق", Dhuhr: "الظهر", Asr: "العصر", Maghrib: "المغرب", Isha: "العشاء"
+                    };
+                    const val = offsets[key];
+                    return (
+                      <div key={key} className="flex flex-col gap-1 p-1.5 rounded-lg bg-[#071129] border border-white/5 items-center">
+                        <span className="font-medium text-[11px] text-gray-300">
+                          {lang === "ar" ? arabicNames[key] : key}
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOffsetChange(key, val - 1)}
+                            className="w-5 h-5 rounded bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 active:scale-95"
+                          >
+                            -
+                          </button>
+                          
+                          <span className="min-w-[40px] text-center font-mono font-bold text-[10px] text-amber-400">
+                            {val > 0 ? `+${val}` : val} {lang === "ar" ? "د" : "m"}
+                          </span>
+                          
+                          <button
+                            type="button"
+                            onClick={() => handleOffsetChange(key, val + 1)}
+                            className="w-5 h-5 rounded bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 active:scale-95"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -489,7 +691,7 @@ export default function Compass({ lang }: CompassProps) {
             </div>
             
             <div className="text-right font-mono text-sm tracking-wide text-amber-400 font-bold">
-              {nextPrayerTime} <span className="text-xs font-sans text-gray-400">{countdownText}</span>
+              {formatTime12(nextPrayerTime)} <span className="text-xs font-sans text-gray-400">{countdownText}</span>
             </div>
           </div>
 
@@ -512,7 +714,7 @@ export default function Compass({ lang }: CompassProps) {
                   className="flex justify-between items-center px-4 py-3 rounded-xl border border-white/5 bg-[#050B18]/60 hover:bg-[#050B18] hover:border-amber-500/10 transition-all duration-300"
                 >
                   <div className="font-mono text-base font-bold text-white tracking-wide">
-                    {timings[key]}
+                    {formatTime12(getAdjustedTime(key))}
                   </div>
 
                   <span className="text-[10px] text-gray-400 font-mono uppercase hidden sm:inline">

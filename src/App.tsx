@@ -4,7 +4,7 @@ import {
   Share2, Bookmark, Copy, RotateCcw, Compass as CompassIcon, Activity, Award, 
   MessageSquare, Play, Pause, SkipForward, SkipBack, Sliders, Globe, 
   Languages, X, Moon, Sun, Flame, Download, Check, Heart, HelpCircle, Eye, EyeOff,
-  ChevronLeft, AlignRight, AlertCircle
+  ChevronLeft, AlignRight, AlertCircle, RefreshCw
 } from "lucide-react";
 
 import { quranSurahs, SurahMetadata } from "./data/quranMetadata";
@@ -128,6 +128,7 @@ interface AyahItem {
   numberInSurah: number;
   text: string;
   translation: string;
+  tafseer?: string;
 }
 
 interface LoadedSurahData {
@@ -163,7 +164,7 @@ export default function App() {
   // Stylizations slider
   const [arabicFontSize, setArabicFontSize] = useState<number>(26);
   const [englishFontSize, setEnglishFontSize] = useState<number>(14);
-  const [fontFamilyType, setFontFamilyType] = useState<string>("amiri"); // amiri vs cairo vs me_quran
+  const [fontFamilyType, setFontFamilyType] = useState<string>(() => localStorage.getItem("mushaf_font_family") || "amiri");
   const [readingMode, setReadingMode] = useState<"continuous" | "verseByVerse">("verseByVerse");
   const [displayTranslation, setDisplayTranslation] = useState<boolean>(true);
   const [displayTafseer, setDisplayTafseer] = useState<boolean>(false);
@@ -188,6 +189,7 @@ export default function App() {
   const [dailyHadith, setDailyHadith] = useState<{ hadith: string; translation: string; source: string } | null>(null);
   const [dailyBenefit, setDailyBenefit] = useState<{ titleAr: string; titleEn: string; textAr: string; textEn: string } | null>(null);
   const [randomDua, setRandomDua] = useState<string>("");
+  const [isSpinningGifts, setIsSpinningGifts] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeVerseRef = useRef<HTMLDivElement | null>(null);
@@ -221,19 +223,25 @@ export default function App() {
       { text: "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ", translation: "Allah - there is no deity except Him, the Ever-Living, the Sustainer of [all] existence. Neither drowsiness overtakes Him nor sleep.", surah: "البقرة", verse: 255 },
       { text: "إِنَّ مَعَ الْعُسْرِ يُسْرًا", translation: "Indeed, with hardship [will be] ease.", surah: "الشرح", verse: 6 },
       { text: "وَقُل رَّبِّ زِدْنِي عِلْمًا", translation: "And say, \"My Lord, increase me in knowledge.\"", surah: "طه", verse: 114 },
-      { text: "وَتَوَكَّلْ عَلَى الْحَيِّ الَّذِي لَا يَمُوتُ", translation: "And rely upon the Ever-Living who does not die...", surah: "الفرقان", verse: 58 }
+      { text: "وَتَوَكَّلْ عَلَى الْحَيِّ الَّذِي لَا يَمُوتُ", translation: "And rely upon the Ever-Living who does not die...", surah: "الفرقان", verse: 58 },
+      { text: "رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا وَهَبْ لَنَا مِن لَّدُنكَ رَحْمَةً ۚ إِنَّكَ أَنتَ الْوهَّابُ", translation: "[Who say], 'Our Lord, let not our hearts deviate after You have guided us and grant us from Yourself mercy. Indeed, You are the Bestower.'", surah: "آل عمران", verse: 8 },
+      { text: "إِنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ ۚ يَا أَيُّهَا الَّذِينَ آمَنُوا صَلُّوا عَلَيْهِ وَسَلِّمُوا تَسْلِيمًا", translation: "Indeed, Allah and His angels send blessings upon the Prophet. O you who have believed, ask [ Allah to send] blessings upon him and ask [ Allah to grant him] peace.", surah: "الأحزاب", verse: 56 },
+      { text: "وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ ۖ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ", translation: "And when My servants ask you, [O Muhammad], concerning Me - indeed I am near. I respond to the invocation of the supplicant when he calls upon Me.", surah: "البقرة", verse: 186 },
+      { text: "أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ", translation: "Unquestionably, by the remembrance of Allah hearts are assured.", surah: "الرعد", verse: 28 },
+      { text: "ادْعُونِي أَسْتَجِبْ لَكُمْ", translation: "Call upon Me; I will respond to you.", surah: "غافر", verse: 60 }
     ];
 
-    const pickVerse = beautifulVerses[new Date().getDate() % beautifulVerses.length];
+    // Pick fully randomly every time
+    const pickVerse = beautifulVerses[Math.floor(Math.random() * beautifulVerses.length)];
     setDailyAyah(pickVerse);
 
-    const pickHadith = dailyHadiths[new Date().getDate() % dailyHadiths.length];
+    const pickHadith = dailyHadiths[Math.floor(Math.random() * dailyHadiths.length)];
     setDailyHadith(pickHadith);
 
-    const pickBenefit = quranicBenefits[new Date().getDate() % quranicBenefits.length];
+    const pickBenefit = quranicBenefits[Math.floor(Math.random() * quranicBenefits.length)];
     setDailyBenefit(pickBenefit);
 
-    const pickDua = dailyDuas[new Date().getDate() % dailyDuas.length];
+    const pickDua = dailyDuas[Math.floor(Math.random() * dailyDuas.length)];
     setRandomDua(pickDua);
   };
 
@@ -242,6 +250,11 @@ export default function App() {
     setLang(newLang);
     localStorage.setItem("app_lang", newLang);
   };
+
+  // Font family state sync
+  useEffect(() => {
+    localStorage.setItem("mushaf_font_family", fontFamilyType);
+  }, [fontFamilyType]);
 
   // Toggle dark/light modes
   const handleToggleTheme = () => {
@@ -273,7 +286,7 @@ export default function App() {
           const timeoutId = setTimeout(() => controller.abort(), 6000);
           
           const clientResponse = await fetch(
-            `https://api.alquran.cloud/v1/surah/${selectedSurahId}/editions/quran-uthmani,en.sahih`,
+            `https://api.alquran.cloud/v1/surah/${selectedSurahId}/editions/quran-uthmani,en.sahih,ar.muyassar`,
             { signal: controller.signal }
           );
           clearTimeout(timeoutId);
@@ -283,6 +296,8 @@ export default function App() {
             if (clientJson.code === 200 && clientJson.data && clientJson.data.length >= 2) {
               const arabicEdition = clientJson.data[0];
               const englishEdition = clientJson.data[1];
+              const tafseerEdition = clientJson.data[2];
+              
               fetchedData = {
                 number: arabicEdition.number,
                 name: arabicEdition.name,
@@ -293,10 +308,11 @@ export default function App() {
                 ayahs: arabicEdition.ayahs.map((ayah: any, index: number) => ({
                   numberInSurah: ayah.numberInSurah,
                   text: ayah.text,
-                  translation: englishEdition.ayahs[index]?.text || ""
+                  translation: englishEdition.ayahs[index]?.text || "",
+                  tafseer: tafseerEdition?.ayahs[index]?.text || "التفسير الميسر غير متوفر لهذه الآية."
                 }))
               };
-              console.log("Quran loaded successfully via direct client-side API.");
+              console.log("Quran and Tafseer loaded successfully via direct client-side API.");
             }
           }
         } catch (clientErr) {
@@ -374,6 +390,13 @@ export default function App() {
     const handleAudioEnded = () => {
       if (!activeSurahData || activeVerseAudioIndex === null) return;
 
+      // Sheikh Muhammad Al-Luhaidan is played as continuous full Surah
+      if (selectedReciter === "mp3quran.lhdan") {
+        setActivePlaying(false);
+        setActiveVerseAudioIndex(null);
+        return;
+      }
+
       // Memorizer repetition loop check
       if (repeatCounter + 1 < repeatLimit) {
         setRepeatCounter(repeatCounter + 1);
@@ -405,7 +428,7 @@ export default function App() {
     return () => {
       currentAudio.removeEventListener("ended", handleAudioEnded);
     };
-  }, [activeSurahData, activeVerseAudioIndex, repeatLimit, repeatCounter]);
+  }, [activeSurahData, activeVerseAudioIndex, repeatLimit, repeatCounter, selectedReciter]);
 
   // Handle active playing sound trigger
   useEffect(() => {
@@ -423,7 +446,10 @@ export default function App() {
 
     const globalIndex = calculateGlobalAyahNumber(selectedSurahId!, activeSurahData.ayahs[activeVerseAudioIndex].numberInSurah);
     let audioUrl = "";
-    if (selectedReciter.startsWith("everyayah.")) {
+    if (selectedReciter === "mp3quran.lhdan") {
+      const surahStr = selectedSurahId!.toString().padStart(3, "0");
+      audioUrl = `https://server8.mp3quran.net/lhdan/${surahStr}.mp3`;
+    } else if (selectedReciter.startsWith("everyayah.")) {
       const folder = selectedReciter.replace("everyayah.", "");
       const surahStr = selectedSurahId!.toString().padStart(3, "0");
       const ayahStr = activeSurahData.ayahs[activeVerseAudioIndex].numberInSurah.toString().padStart(3, "0");
@@ -729,6 +755,23 @@ export default function App() {
         {activeTab === "home" && (
           <div className="w-full max-w-4xl mx-auto space-y-6">
             
+            {/* Developer Dedication Message */}
+            <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-right shadow-sm ${
+              themeMode === "dark" 
+                ? "bg-amber-500/5 border-amber-500/10 text-amber-300" 
+                : "bg-amber-500/10 border-amber-500/20 text-amber-900"
+            }`} dir="rtl">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">✨</span>
+                <span className="text-xs md:text-sm font-sans font-medium">
+                  {lang === "ar" 
+                    ? "تم تطوير التطبيق بواسطة حمدي محمد غفر الله له" 
+                    : "The application was developed by Hamdy Mohamed, may Allah forgive him"}
+                </span>
+              </div>
+              <span className="text-amber-500/60 text-sm select-none">🕌</span>
+            </div>
+
             {/* Elegant Welcome Hero Lantern Message */}
             <div className={`relative p-8 rounded-[40px] border flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden shadow-xl ${
               themeMode === "dark" 
@@ -737,13 +780,28 @@ export default function App() {
             }`}>
               
               <div className="flex-grow text-center md:text-right">
-                <div className="inline-flex gap-1 items-center px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/10 text-amber-500 text-xs font-medium font-sans mb-3">
-                  <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                  <span>{lang === "ar" ? "رفيق المسلّم والذاكر" : "Islamic Companion Core"}</span>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-3">
+                  <div className="inline-flex gap-1 items-center px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/10 text-amber-500 text-xs font-medium font-sans">
+                    <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                    <span>{lang === "ar" ? "رفيق المسلّم والذاكر" : "Islamic Companion Core"}</span>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      setIsSpinningGifts(true);
+                      selectDailySpiritualGifts();
+                      setTimeout(() => setIsSpinningGifts(false), 600);
+                    }}
+                    className="inline-flex gap-1.5 items-center px-2.5 py-1 rounded-full bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 border border-amber-500/15 text-amber-300 hover:text-amber-200 text-xs font-medium font-sans transition-all cursor-pointer"
+                    title={lang === "ar" ? "تغيير الورد اليومي (توليد عشوائي)" : "Shuffle Daily Devotions"}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isSpinningGifts ? "animate-spin" : ""}`} />
+                    <span>{lang === "ar" ? "تغيير وتحديث الورد 🔄" : "Shuffle Ward"}</span>
+                  </button>
                 </div>
                 
                 <h2 className="text-xl md:text-2xl font-bold text-white font-sans text-shadow-sm leading-snug">
-                  {lang === "ar" ? "أهلاً بك بك في المصحف المضيء" : "Welcome to Al-Mushaf Al-Mudee"}
+                  {lang === "ar" ? "أهلاً بك في المصحف المضيء" : "Welcome to Al-Mushaf Al-Mudee"}
                 </h2>
                 
                 <p className={`text-xs mt-2 max-w-lg leading-relaxed ${themeMode === "dark" ? "text-gray-300" : "text-gray-700"}`}>
@@ -753,8 +811,17 @@ export default function App() {
                 </p>
                 
                 {/* Random day supplication button */}
-                <div className="mt-4 inline-flex items-center gap-2 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/15 text-amber-300 text-[11px] leading-snug font-sans italic max-w-md w-full" dir="rtl">
-                  <span>✨ <strong>{lang === "ar" ? "ورد دعاء متجدّد:" : "Dua of high spirit:"}</strong> {randomDua}</span>
+                <div 
+                  onClick={() => {
+                    const pickDua = dailyDuas[Math.floor(Math.random() * dailyDuas.length)];
+                    setRandomDua(pickDua);
+                  }}
+                  className="mt-4 inline-flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/15 text-amber-300 text-[11px] leading-snug font-sans italic max-w-md w-full cursor-pointer transition-all active:scale-[0.98]" 
+                  dir="rtl"
+                  title={lang === "ar" ? "اضغط لتغيير الدعاء" : "Click to change Supplication"}
+                >
+                  <span className="flex-grow text-right">✨ <strong>{lang === "ar" ? "ورد دعاء متجدّد:" : "Dua of high spirit:"}</strong> {randomDua}</span>
+                  <RefreshCw className="w-3 h-3 text-amber-500/60 shrink-0 opacity-60 hover:opacity-100" />
                 </div>
               </div>
 
@@ -815,7 +882,11 @@ export default function App() {
                     </h3>
                     
                     <div className="bg-[#050B18] rounded-2xl p-4 text-center my-2 border border-white/5 shadow-inner">
-                      <p className="font-sans text-base leading-relaxed text-amber-100 font-medium" dir="rtl">
+                      <p 
+                        className="text-base leading-relaxed text-amber-100 font-medium" 
+                        style={{ fontFamily: `var(--font-${fontFamilyType})` }}
+                        dir="rtl"
+                      >
                         {dailyAyah.text}
                       </p>
                       <p className="text-gray-400 text-xs font-sans italic mt-2.5 leading-relaxed">
@@ -1022,11 +1093,29 @@ export default function App() {
                       <select
                         value={fontFamilyType}
                         onChange={(e) => setFontFamilyType(e.target.value)}
-                        className="w-full bg-[#070C1B] border border-gray-800 rounded-xl px-2.5 py-1.5 text-xs text-amber-300 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        className="w-full bg-[#070C1B] border border-gray-800 rounded-xl px-2.5 py-1.5 text-xs text-amber-300 focus:outline-none focus:border-amber-500 cursor-pointer text-shadow-sm"
                       >
-                        <option value="amiri">Cairo Script (Standard)</option>
-                        <option value="cairo">Amiri Quranic Serif</option>
-                        <option value="me_quran">Simplified Rasm Uthman</option>
+                        <option value="amiri">
+                          {lang === "ar" ? "🕌 خط الأميري (عثماني كلاسيكي)" : "🕌 Amiri Classic (Uthmanic)"}
+                        </option>
+                        <option value="scheherazade">
+                          {lang === "ar" ? "🕌 خط شهرزاد (نسخ أنيق)" : "🕌 Scheherazade (Elegant Naskh)"}
+                        </option>
+                        <option value="lateef">
+                          {lang === "ar" ? "✨ خط لطيف (نسخ انسيابي)" : "✨ Lateef (Flowing Cursive)"}
+                        </option>
+                        <option value="cairo">
+                          {lang === "ar" ? "📱 خط القاهرة (حديث وتفاعلي)" : "📱 Cairo (Modern UI Sans)"}
+                        </option>
+                        <option value="kufi">
+                          {lang === "ar" ? "🏛️ خط ريم كوفي (كوفي أثري)" : "🏛️ Reem Kufi (Historic Kufic)"}
+                        </option>
+                        <option value="noto">
+                          {lang === "ar" ? "📖 خط نووتو (نسخ قياسي واضح)" : "📖 Noto Naskh (Standard Quran)"}
+                        </option>
+                        <option value="tajawal">
+                          {lang === "ar" ? "🎨 خط تجول (نسخ مبسط ناعم)" : "🎨 Tajawal (Clean Geometric)"}
+                        </option>
                       </select>
                     </div>
 
@@ -1161,8 +1250,8 @@ export default function App() {
                     {/* RENDER MODE A: Continuous Book Layout */}
                     {readingMode === "continuous" ? (
                       <div 
-                        className={`leading-[2.2] text-center select-text selection:bg-amber-500/30 font-sans tracking-wide pr-1`}
-                        style={{ fontSize: `${arabicFontSize}px` }}
+                        className="leading-[2.2] text-center select-text selection:bg-amber-500/30 tracking-wide pr-1"
+                        style={{ fontSize: `${arabicFontSize}px`, fontFamily: `var(--font-${fontFamilyType})` }}
                         dir="rtl"
                       >
                         {activeSurahData.ayahs.map((ayah, aIdx) => {
@@ -1263,8 +1352,8 @@ export default function App() {
 
                               {/* Arabic Uthmani text body */}
                               <p 
-                                className="text-amber-100 font-sans leading-relaxed text-right mb-3 outline-none select-text" 
-                                style={{ fontSize: `${arabicFontSize}px` }} 
+                                className="text-amber-100 leading-relaxed text-right mb-3 outline-none select-text" 
+                                style={{ fontSize: `${arabicFontSize}px`, fontFamily: `var(--font-${fontFamilyType})` }} 
                                 dir="rtl"
                               >
                                 {ayah.text}
@@ -1286,8 +1375,8 @@ export default function App() {
                                   <span className="text-[9.5px] font-bold text-amber-400 uppercase tracking-widest block mb-1">
                                     {uiTranslations[lang].tafseerTitle}
                                   </span>
-                                  <p className="text-gray-300 text-[11px] leading-relaxed font-sans">
-                                    {"شرح ميسر ومبسط لمعنى الآية وسياق نزولها الإيماني بناءً على التفسير الميسر الموثق لدعم تلاوة واعية بالتدبر والتأمل."}
+                                  <p className="text-gray-300 text-[11px] leading-relaxed font-sans select-text">
+                                    {ayah.tafseer || "التفسير الميسر غير متوفر لهذه الآية حالياً."}
                                   </p>
                                 </div>
                               )}
@@ -1424,11 +1513,21 @@ export default function App() {
             {/* active metadata details texts */}
             <div className="text-right">
               <span className="text-[10px] text-gray-400 uppercase tracking-widest block">
-                {lang === "ar" ? "آية قيد التلاوة الآن" : "Now Reciting Active Verse"}
+                {selectedReciter === "mp3quran.lhdan"
+                  ? (lang === "ar" ? "تلاوة سورة كاملة متواصلة" : "Full Continuous Surah Recitation")
+                  : (lang === "ar" ? "آية قيد التلاوة الآن" : "Now Reciting Active Verse")}
               </span>
               <span className="text-xs font-sans font-bold text-white block">
-                {lang === "ar" ? activeSurahData.name : activeSurahData.englishName} | آية {activeSurahData.ayahs[activeVerseAudioIndex].numberInSurah}
+                {lang === "ar" ? activeSurahData.name : activeSurahData.englishName}
+                {selectedReciter !== "mp3quran.lhdan" && ` | آية ${activeSurahData.ayahs[activeVerseAudioIndex].numberInSurah}`}
               </span>
+              {selectedReciter === "mp3quran.lhdan" && (
+                <span className="text-[9.5px] font-sans text-amber-400 block mt-0.5 animate-pulse">
+                  {lang === "ar" 
+                    ? "✨ بصوت الشيخ محمد اللحيدان" 
+                    : "✨ By Sheikh Muhammad Al-Luhaidan"}
+                </span>
+              )}
             </div>
           </div>
 
@@ -1444,6 +1543,7 @@ export default function App() {
                 className="bg-[#070C1B] border border-gray-800 rounded-xl px-2 py-1 text-xs text-amber-300 focus:outline-none focus:border-amber-500 cursor-pointer"
               >
                 <option value="everyayah.Yasser_Ad-Dussary_128kbps">M. Yasser Al-Dossari (🕌 ياسر الدوسري)</option>
+                <option value="mp3quran.lhdan">Muhammad Al-Luhaidan (🕌 محمد اللحيدان - سورة كاملة)</option>
                 <option value="ar.alafasy">Mishary Al-Afasy (🕋 مِشاري العَفاسي)</option>
                 <option value="everyayah.Abdurrahmaan_As-Sudais_192kbps">Abdurrahman Al-Sudais (🕌 عبدالرحمن السديس)</option>
                 <option value="ar.mahermuaiqly">Maher Al-Muaiqly (🕌 ماهر المعيقلي)</option>
@@ -1579,7 +1679,11 @@ export default function App() {
               </div>
 
               <div className="my-4">
-                <p className="font-sans text-lg md:text-xl font-bold leading-relaxed tracking-wide text-amber-100" dir="rtl">
+                <p 
+                  className="text-lg md:text-xl font-bold leading-relaxed tracking-wide text-amber-100 whitespace-pre-line" 
+                  style={{ fontFamily: `var(--font-${fontFamilyType})` }}
+                  dir="rtl"
+                >
                   {cardContent.textAr}
                 </p>
                 
