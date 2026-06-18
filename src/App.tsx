@@ -153,6 +153,8 @@ export default function App() {
   // Quran Reader States
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedSurahId, setSelectedSurahId] = useState<number | null>(null);
+  const [revelationFilter, setRevelationFilter] = useState<"all" | "Meccan" | "Medinan">("all");
+  const [groupByJuz, setGroupByJuz] = useState<boolean>(false);
   const [activeSurahData, setActiveSurahData] = useState<LoadedSurahData | null>(null);
   const [surahLoading, setSurahLoading] = useState<boolean>(false);
   const [surahError, setSurahError] = useState<string | null>(null);
@@ -604,13 +606,15 @@ export default function App() {
   // Filters for Surah Index search
   const filteredSurahs = quranSurahs.filter((s) => {
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesQuery = (
       s.name.includes(query) ||
       s.englishName.toLowerCase().includes(query) ||
       s.number.toString() === query ||
       `جزء ${s.juzStart}`.includes(query) ||
       `juz ${s.juzStart}`.includes(query)
     );
+    const matchesRevelation = revelationFilter === "all" || s.revelationType === revelationFilter;
+    return matchesQuery && matchesRevelation;
   });
 
   return (
@@ -987,7 +991,9 @@ export default function App() {
                     placeholder={uiTranslations[lang].searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-transparent border-none text-sm text-white placeholder-gray-500 focus:outline-none w-full text-center md:text-right font-sans"
+                    className={`bg-transparent border-none text-sm placeholder-gray-500 focus:outline-none w-full text-center md:text-right font-sans ${
+                      themeMode === "dark" ? "text-white" : "text-gray-800"
+                    }`}
                     dir={lang === "ar" ? "rtl" : "ltr"}
                   />
                   {searchQuery && (
@@ -997,56 +1003,209 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Grid List of Surahs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {filteredSurahs.map((surah) => (
-                    <div
-                      key={surah.number}
-                      onClick={() => setSelectedSurahId(surah.number)}
-                      className={`p-4 rounded-2xl border transition-all duration-300 cursor-pointer flex justify-between items-center group ${
-                        themeMode === "dark"
-                          ? "bg-[#0B132B]/85 border-gray-850 hover:border-amber-500/40 hover:bg-[#0B132B] shadow-sm"
-                          : "bg-white border-amber-500/10 hover:border-amber-500/30 hover:shadow shadow-sm"
+                {/* Filter & Grouping Toggles */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  {/* Revelation Filter Button Group */}
+                  <div className={`flex p-1 rounded-2xl border flex-grow basis-3/5 ${
+                    themeMode === "dark" ? "bg-[#071129] border-amber-500/10" : "bg-amber-500/5 border-amber-500/10 shadow-sm"
+                  }`}>
+                    <button
+                      onClick={() => setRevelationFilter("all")}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold font-sans transition-all ${
+                        revelationFilter === "all"
+                          ? "bg-amber-600 text-slate-950 font-bold shadow"
+                          : "text-gray-400 hover:text-white"
                       }`}
                     >
-                      {/* Left: Metadata info English */}
-                      <div className="text-left font-sans">
-                        <h4 className="text-xs font-bold text-gray-400 group-hover:text-amber-500 transition-colors">
-                          {surah.englishName}
-                        </h4>
-                        <span className="text-[10px] text-gray-500 block leading-tight mt-0.5">
-                          {surah.englishNameTranslation}
-                        </span>
-                        <span className="text-[9px] text-gray-500 block mt-1 font-mono uppercase tracking-widest">
-                          {surah.revelationType === "Meccan" ? uiTranslations[lang].meccan : uiTranslations[lang].medinan} | {surah.numberOfAyahs} ayahs
-                        </span>
-                      </div>
+                      {lang === "ar" ? "كل السور" : "All Surahs"}
+                    </button>
+                    <button
+                      onClick={() => setRevelationFilter("Meccan")}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold font-sans transition-all flex items-center justify-center gap-1.5 ${
+                        revelationFilter === "Meccan"
+                          ? "bg-amber-600 text-slate-950 font-bold shadow"
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      <span>🕋</span>
+                      <span>{uiTranslations[lang].meccan}</span>
+                    </button>
+                    <button
+                      onClick={() => setRevelationFilter("Medinan")}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold font-sans transition-all flex items-center justify-center gap-1.5 ${
+                        revelationFilter === "Medinan"
+                          ? "bg-amber-600 text-slate-950 font-bold shadow"
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      <span>🕌</span>
+                      <span>{uiTranslations[lang].medinan}</span>
+                    </button>
+                  </div>
 
-                      {/* Right: Metadata info Arabic */}
-                      <div className="text-right flex items-center gap-3">
-                        <div>
-                          <h3 className="text-base font-bold text-white font-sans mr-1">
-                            {surah.name}
-                          </h3>
-                          <span className="text-[10px] text-gray-400 block font-mono text-center">
-                            الجزء {surah.juzStart}
+                  {/* Grouping Filter Toggle */}
+                  <div className={`flex p-1 rounded-2xl border shrink-0 sm:w-64 ${
+                    themeMode === "dark" ? "bg-[#071129] border-amber-500/10" : "bg-amber-500/5 border-amber-500/10 shadow-sm"
+                  }`}>
+                    <button
+                      onClick={() => setGroupByJuz(false)}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold font-sans transition-all ${
+                        !groupByJuz
+                          ? "bg-amber-600 text-slate-950 font-bold shadow"
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {lang === "ar" ? "فهرس السور" : "Surah Index"}
+                    </button>
+                    <button
+                      onClick={() => setGroupByJuz(true)}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold font-sans transition-all ${
+                        groupByJuz
+                          ? "bg-amber-600 text-slate-950 font-bold shadow"
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {lang === "ar" ? "عرض الأجزاء" : "Group by Juz"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid List or Grouped List of Surahs */}
+                {!groupByJuz ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {filteredSurahs.map((surah) => (
+                      <div
+                        key={surah.number}
+                        onClick={() => setSelectedSurahId(surah.number)}
+                        className={`p-4 rounded-2xl border transition-all duration-305 cursor-pointer flex justify-between items-center group ${
+                          themeMode === "dark"
+                            ? "bg-[#0B132B]/85 border-amber-500/10 hover:border-amber-500/40 hover:bg-[#0B132B] shadow-sm"
+                            : "bg-white border-amber-500/10 hover:border-amber-500/30 hover:shadow shadow-sm"
+                        }`}
+                      >
+                        {/* Left: Metadata info English */}
+                        <div className="text-left font-sans">
+                          <h4 className="text-xs font-bold text-gray-400 group-hover:text-amber-500 transition-colors">
+                            {surah.englishName}
+                          </h4>
+                          <span className="text-[10px] text-gray-500 block leading-tight mt-0.5">
+                            {surah.englishNameTranslation}
+                          </span>
+                          <span className="text-[9px] text-gray-500 block mt-1 font-mono uppercase tracking-widest">
+                            {surah.revelationType === "Meccan" ? `🕋 ${uiTranslations[lang].meccan}` : `🕌 ${uiTranslations[lang].medinan}`} | {surah.numberOfAyahs} ayahs
                           </span>
                         </div>
-                        
-                        {/* Circle numeric index marker */}
-                        <div className="w-8 h-8 rounded-full border border-amber-500/10 bg-[#070C1B] flex items-center justify-center text-xs font-mono font-bold text-amber-400 group-hover:bg-amber-500 group-hover:text-[#0A1128] transition-all shrink-0">
-                          {surah.number}
+
+                        {/* Right: Metadata info Arabic */}
+                        <div className="text-right flex items-center gap-3">
+                          <div>
+                            <h3 className={`text-base font-bold font-sans mr-1 ${themeMode === "dark" ? "text-white" : "text-gray-900"}`}>
+                              {surah.name}
+                            </h3>
+                            <span className="text-[10px] text-gray-400 block font-mono text-center">
+                              الجزء {surah.juzStart}
+                            </span>
+                          </div>
+                          
+                          {/* Circle numeric index marker */}
+                          <div className="w-8 h-8 rounded-full border border-amber-500/10 bg-[#070C1B] flex items-center justify-center text-xs font-mono font-bold text-amber-400 group-hover:bg-amber-500 group-hover:text-[#0A1128] transition-all shrink-0">
+                            {surah.number}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  
-                  {filteredSurahs.length === 0 && (
-                    <div className="col-span-full text-center py-12 text-gray-500 font-sans text-xs">
-                      {lang === "ar" ? "لم نجد أي سورة تطابق كلمة البحث." : "No Surah found matching the search query."}
-                    </div>
-                  )}
-                </div>
+                    ))}
+                    
+                    {filteredSurahs.length === 0 && (
+                      <div className="col-span-full text-center py-12 text-gray-500 font-sans text-xs">
+                        {lang === "ar" ? "لم نجد أي سورة تطابق كلمة البحث وفلاتر العرض المتوفرة." : "No Surah found matching the search query and active parameters."}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Grouped by Juz Section */
+                  <div className="space-y-6">
+                    {(() => {
+                      const groupedByJuzData: { [key: number]: typeof quranSurahs } = {};
+                      filteredSurahs.forEach((surah) => {
+                        const juz = surah.juzStart;
+                        if (!groupedByJuzData[juz]) {
+                          groupedByJuzData[juz] = [];
+                        }
+                        groupedByJuzData[juz].push(surah);
+                      });
+
+                      const juzKeys = Object.keys(groupedByJuzData).map(Number).sort((a, b) => a - b);
+                      
+                      if (juzKeys.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-gray-500 font-sans text-xs">
+                            {lang === "ar" ? "لم نجد أي سورة تطابق كلمة البحث وفلاتر العرض المتوفرة." : "No Surah found matching the search query and active parameters."}
+                          </div>
+                        );
+                      }
+
+                      return juzKeys.map((juz) => {
+                        const surahsInJuz = groupedByJuzData[juz];
+                        return (
+                          <div key={juz} className="space-y-3 bg-[#0B132B]/20 p-4 rounded-3xl border border-amber-500/5">
+                            {/* Group header */}
+                            <div className="flex items-center justify-between border-b border-amber-500/10 pb-2 mb-1">
+                              <h3 className="text-sm font-bold text-amber-500 font-sans flex items-center gap-1.5">
+                                <span>📖</span>
+                                <span>{lang === "ar" ? `الجزء ${juz}` : `Juz ${juz}`}</span>
+                              </h3>
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                {surahsInJuz.length} {lang === "ar" ? "سور" : "surahs"}
+                              </span>
+                            </div>
+
+                            {/* Surah List in this Juz */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                              {surahsInJuz.map((surah) => (
+                                <div
+                                  key={surah.number}
+                                  onClick={() => setSelectedSurahId(surah.number)}
+                                  className={`p-4 rounded-2xl border transition-all duration-305 cursor-pointer flex justify-between items-center group ${
+                                    themeMode === "dark"
+                                      ? "bg-[#0B132B]/85 border-amber-500/10 hover:border-amber-500/40 hover:bg-[#0B132B] shadow-sm"
+                                      : "bg-white border-amber-500/10 hover:border-amber-500/30 hover:shadow shadow-sm"
+                                  }`}
+                                >
+                                  {/* Left: Metadata info English */}
+                                  <div className="text-left font-sans">
+                                    <h4 className="text-xs font-bold text-gray-400 group-hover:text-amber-500 transition-colors">
+                                      {surah.englishName}
+                                    </h4>
+                                    <span className="text-[10px] text-gray-500 block leading-tight mt-0.5">
+                                      {surah.englishNameTranslation}
+                                    </span>
+                                    <span className="text-[9px] text-gray-500 block mt-1 font-mono uppercase tracking-widest">
+                                      {surah.revelationType === "Meccan" ? `🕋 ${uiTranslations[lang].meccan}` : `🕌 ${uiTranslations[lang].medinan}`} | {surah.numberOfAyahs} ayahs
+                                    </span>
+                                  </div>
+
+                                  {/* Right: Metadata info Arabic */}
+                                  <div className="text-right flex items-center gap-3">
+                                    <div>
+                                      <h3 className={`text-base font-bold font-sans mr-1 ${themeMode === "dark" ? "text-white" : "text-gray-900"}`}>
+                                        {surah.name}
+                                      </h3>
+                                    </div>
+                                    
+                                    {/* Circle numeric index marker */}
+                                    <div className="w-8 h-8 rounded-full border border-amber-500/10 bg-[#070C1B] flex items-center justify-center text-xs font-mono font-bold text-amber-400 group-hover:bg-amber-500 group-hover:text-[#0A1128] transition-all shrink-0">
+                                      {surah.number}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
               </div>
             ) : (
               /* If Surah is selected: Display Verses reading panel */
